@@ -1,86 +1,120 @@
-from __future__ import print_function
-import os.path, base64, pandas as pd
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.application import MIMEApplication
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-import time
+import argparse
+import os
+from config import CONFIG
+from src.auth import get_gmail_service
+from src.data_manager import DataManager
+from src.template_manager import TemplateManager
+from src.engine import EmailEngine
 
-SCOPES = ['https://www.googleapis.com/auth/gmail.send']
-# CONTACTS = 'contacts.csv'
-# CONTACTS = ''
-CONTACTS = 'test.csv'
-TEMPLATE = 'template.txt'
-PDF = '2026系卡企劃書.pdf'
-SUBJECT = "【合作邀請】臺大資訊系卡 × {company_name} 宣傳與贊助合作提案"
+# ANSI Colors
+YELLOW = "\033[93m"
+GREEN = "\033[92m"
+RED = "\033[91m"
+RESET = "\033[0m"
 
-def get_service():
-    print("正在獲取寄信權限...")
-    creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
-    print("獲取成功！")
-    return build('gmail', 'v1', credentials=creds)
+class CLIHandler:
+    @staticmethod
+    def parse_args():
+        parser = argparse.ArgumentParser(description="Gmail Bulk Sender")
+        parser.add_argument("-d", "--dry-run", action="store_true", help="Enable dry run mode (simulation)")
+        parser.add_argument("--reset", action="store_true", help="Clear the sent log before starting")
+        parser.add_argument("-c", "--contacts", type=str, default=CONFIG['CONTACTS_FILE'], help="Path to contacts CSV")
+        parser.add_argument("-t", "--template", type=str, default=CONFIG['TEMPLATE_FILE'], help="Path to email template")
+        parser.add_argument("-s", "--stats", action="store_true", help="Show contact list statistics")
+        parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompt")
+        return parser.parse_args()
 
-def render_template(template_text, data):
-    for key, value in data.items():
-        template_text = template_text.replace(f'<<{key}>>', str(value))
-    return template_text
+def check_requirements(contacts_file, template_file):
+    """Initial sanity check for file existence."""
+    required = [contacts_file, template_file, CONFIG['CREDENTIALS_FILE']]
+    attachments = CONFIG.get('ATTACHMENTS')
+    if isinstance(attachments, str):
+        required.append(attachments)
+    elif isinstance(attachments, list):
+        required.extend([a for a in attachments if a])
+        
+    missing = [f for f in required if not os.path.exists(f)]
+    if missing:
+        print(f"{RED}Error: Missing required files: {', '.join(missing)}{RESET}")
+        exit(1)
 
-def send_email(service, to, subject, body, attachment=None):
-    message = MIMEMultipart('mixed')
-    message['to'] = to
-    message['subject'] = subject
-    message.attach(MIMEText(body, 'plain', 'utf-8'))
+def main():
+    args = CLIHandler.parse_args()
+    
+    # Initialize Managers
+    data_manager = DataManager(args.contacts, CONFIG['LOG_FILE'])
+    template_manager = TemplateManager(args.template, CONFIG['EMAIL_SUBJECT_FORMAT'])
 
-    if attachment and os.path.exists(attachment):
-        with open(attachment, 'rb') as f:
-            part = MIMEApplication(f.read(), _subtype='pdf')
-            part.add_header('Content-Disposition', 'attachment', filename=os.path.basename(attachment))
-            message.attach(part)
+    if args.reset:
+        data_manager.reset_log()
+        print(f"{YELLOW}Sent log cleared.{RESET}")
 
-    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-    service.users().messages().send(userId='me', body={'raw': raw}).execute()
+    check_requirements(args.contacts, args.template)
 
-def confirm_action(msg):
-    ans = input(msg)
-    if ans.lower() != 'y':
-        print("已取消")
-        exit(0)
+    # Load Data
+    try:
+        data_manager.load_contacts()
+        data_manager.load_sent_log()
+        template_manager.load_template()
+    except Exception as e:
+        print(f"{RED}Error: {e}{RESET}")
+        return
+
+    # Header
+    print("Gmail Bulk Sender")
+    print(f"Subject Pattern: {CONFIG['EMAIL_SUBJECT_FORMAT'].format(company_name='[Company]')}")
+    print(f"Contacts: {args.contacts}")
+    print(f"Template: {args.template}")
+
+    # Stats
+    if args.stats:
+        stats = data_manager.get_stats()
+        print(f"\n{YELLOW}Contacts Summary:{RESET}")
+        print(f"- Total Records: {stats['total']}")
+        print(f"- Already Sent:  {stats['already_sent']}")
+        print(f"- To be Skipped: {stats['to_be_skipped']}")
+        print(f"- Net to Send:   {stats['net_to_send']}")
+
+    # Preview
+    preview = template_manager.get_preview(data_manager.contacts, data_manager.sent_emails)
+    if preview:
+        print(f"\n{YELLOW}--- Preview (First pending email) ---{RESET}")
+        print(f"To:      {preview['to']}")
+        print(f"Subject: {preview['subject']}")
+        snippet = preview['body'].split('\n')[0]
+        print(f"Body:    {snippet}...")
+        print(f"{YELLOW}-------------------------------------{RESET}")
+    else:
+        print(f"\n{YELLOW}Notice: No pending emails found in the list.{RESET}")
+
+    if args.dry_run:
+        print(f"{YELLOW}Dry run mode enabled. No emails will be sent.{RESET}")
+
+    # Confirmation
+    if not args.yes:
+        confirm = input("\nConfirm start? (y/n): ")
+        if confirm.lower() != 'y':
+            print("Cancelled.")
+            return
+
+    # Gmail Service
+    service = None
+    if not args.dry_run:
+        service = get_gmail_service()
+        if not service:
+            return
+
+    # Engine Execution
+    engine = EmailEngine(service, data_manager, template_manager, CONFIG)
+    sent, skipped, errors = engine.run(is_dry_run=args.dry_run)
+
+    # Final Summary
+    print(f"\n{GREEN}Mission complete!{RESET}")
+    print(f"Successfully processed: {sent}")
+    print(f"Failed: {errors}")
+    print(f"Skipped: {skipped}")
+    if not args.dry_run:
+        print(f"Log updated at: {CONFIG['LOG_FILE']}")
 
 if __name__ == '__main__':
-    missing = [p for p in [CONTACTS, TEMPLATE, PDF, "credentials.json"] if not os.path.exists(p)]
-    if missing:
-        raise FileNotFoundError(f"以下必要檔案不存在：{', '.join(missing)}")
-
-    confirm_action(f"標題：{SUBJECT.format(company_name='COMPANY_NAME')}\n是否正確？（y/n）")
-
-    service = get_service()
-    contacts = pd.read_csv(CONTACTS)
-    with open(TEMPLATE, 'r', encoding='utf-8') as f:
-        template = f.read()
-
-    sent_company = set()
-    for _, row in contacts.iterrows():
-        cmp_name = str(row['company_name']).strip()
-        if cmp_name.startswith('!') or cmp_name in sent_company:
-            print("❌ 跳過重複")
-            continue
-
-        body = render_template(template, dict(row))
-        subject = SUBJECT.format(company_name=row["company_name"])
-        send_email(service, row['company_email'], subject, body, PDF)
-        print(f"✅ 已寄給 {row['company_name']} ({row['company_email']})")
-        sent_company.add(cmp_name)
-        time.sleep(3) # avoid spam
+    main()
