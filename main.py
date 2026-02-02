@@ -5,6 +5,7 @@ from src.auth import get_gmail_service
 from src.data_manager import DataManager
 from src.template_manager import TemplateManager
 from src.engine import EmailEngine
+from src.setup_assistant import show_setup_guide
 
 # ANSI Colors
 YELLOW = "\033[93m"
@@ -22,25 +23,23 @@ class CLIHandler:
         parser.add_argument("-t", "--template", type=str, default=CONFIG['TEMPLATE_FILE'], help="Path to email template")
         parser.add_argument("-s", "--stats", action="store_true", help="Show contact list statistics")
         parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompt")
+        parser.add_argument("--setup", action="store_true", help="Show the Google API setup guide")
         return parser.parse_args()
 
-def check_requirements(contacts_file, template_file):
-    """Initial sanity check for file existence."""
-    required = [contacts_file, template_file, CONFIG['CREDENTIALS_FILE']]
-    attachments = CONFIG.get('ATTACHMENTS')
-    if isinstance(attachments, str):
-        required.append(attachments)
-    elif isinstance(attachments, list):
-        required.extend([a for a in attachments if a])
-        
-    missing = [f for f in required if not os.path.exists(f)]
-    if missing:
-        print(f"{RED}Error: Missing required files: {', '.join(missing)}{RESET}")
+def check_credentials():
+    """Verify credentials.json exists."""
+    if not os.path.exists(CONFIG['CREDENTIALS_FILE']):
+        print(f"{RED}Error: {CONFIG['CREDENTIALS_FILE']} not found.{RESET}")
+        print(f"Run {YELLOW}python main.py --setup{RESET} for a guide on how to get it.")
         exit(1)
 
 def main():
     args = CLIHandler.parse_args()
     
+    if args.setup:
+        show_setup_guide()
+        return
+
     # Initialize Managers
     data_manager = DataManager(args.contacts, CONFIG['LOG_FILE'])
     template_manager = TemplateManager(args.template, CONFIG['EMAIL_SUBJECT_FORMAT'])
@@ -49,7 +48,25 @@ def main():
         data_manager.reset_log()
         print(f"{YELLOW}Sent log cleared.{RESET}")
 
-    check_requirements(args.contacts, args.template)
+    # Check/Generate Contacts
+    if not os.path.exists(args.contacts):
+        print(f"{YELLOW}Notice: {args.contacts} not found.{RESET}")
+        gen = input("Would you like to generate a sample contacts file? (y/n): ")
+        if gen.lower() == 'y':
+            data_manager.generate_template()
+            print(f"{GREEN}Created {args.contacts}. Please fill it and rerun.{RESET}")
+        return
+
+    # Check/Generate Template
+    if not os.path.exists(args.template):
+        print(f"{YELLOW}Notice: {args.template} not found.{RESET}")
+        gen = input("Would you like to generate a sample template file? (y/n): ")
+        if gen.lower() == 'y':
+            template_manager.generate_template()
+            print(f"{GREEN}Created {args.template}. Please edit it and rerun.{RESET}")
+        return
+
+    check_credentials()
 
     # Load Data
     try:

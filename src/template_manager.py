@@ -41,3 +41,10 @@ class TemplateManager:
                     'body': body
                 }
         return None
+
+    def generate_template(self):
+        """Create a sample template.txt file."""
+        os.makedirs(os.path.dirname(self.template_file), exist_ok=True)
+        content = "Hello <<company_name>>,\n\nWe would like to collaborate with you.\n\nBest regards,\nYour Name"
+        with open(self.template_file, 'w', encoding='utf-8') as f:
+            f.write(content)

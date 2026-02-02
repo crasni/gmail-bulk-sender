@@ -20,6 +20,7 @@ A tool for sending bulk emails via the Gmail API with automatic resume, rate-lim
    - Go to [Google Cloud Console](https://console.cloud.google.com/).
    - Enable the **Gmail API**.
    - Create **OAuth 2.0 Desktop Credentials**.
+   - In the "OAuth consent screen" settings, add the sender's email to the **"Test users"** list.
    - Save the JSON as `auth/credentials.json`.
    - On the first run, a browser will open for authentication. The script will save a `token.json` in `auth/` automatically.
 
@@ -46,6 +47,7 @@ Before sending, the tool will:
 | `--reset` | | Delete history and start fresh. |
 | `--stats` | `-s` | Show a breakdown of the contact list (Sent vs Pending). |
 | `--yes` | `-y` | Skip the confirmation prompt (dangerous). |
+| `--setup` | | Show the Google API setup guide. |
 | `--contacts`| `-c` | Specify a custom contacts file path. |
 | `--template`| `-t` | Specify a custom template file path. |
 

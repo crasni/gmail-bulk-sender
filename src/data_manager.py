@@ -74,3 +74,12 @@ class DataManager:
             'to_be_skipped': skipped_tag,
             'net_to_send': to_send
         }
+
+    def generate_template(self):
+        """Create a sample contacts.csv file."""
+        os.makedirs(os.path.dirname(self.contacts_file), exist_ok=True)
+        df = pd.DataFrame({
+            'company_name': ['Example Corp', '!Ignore This Line'],
+            'company_email': ['hello@example.com', 'test@test.com']
+        })
+        df.to_csv(self.contacts_file, index=False)
