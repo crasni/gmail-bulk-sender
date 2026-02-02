@@ -1,69 +1,73 @@
 # Gmail Bulk Sender
 
-A tool for sending bulk emails via the Gmail API with automatic resume, rate-limit protection, and safety previews.
+A clean, modular tool for sending bulk emails via the Gmail API with automatic resume, rate-limit protection, and safety previews.
+
+---
 
 ## Setup
 
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/crasni/gmail-bulk-sender.git
-   cd gmail-bulk-sender
-   ```
+### 1. Installation
+```bash
+# Clone the project
+git clone https://github.com/crasni/gmail-bulk-sender.git
+cd gmail-bulk-sender
 
-2. **Install Python & Virtual Environment** (Python 3.10+ recommended):
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate  # Linux/macOS
-   # or .venv\Scripts\activate on Windows
-   ```
+# Setup environment (Python 3.10+ recommended)
+python3 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-2. **Install Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+# Install requirements
+pip install -r requirements.txt
+```
 
-3. **Google API Setup**:
-   - Go to [Google Cloud Console](https://console.cloud.google.com/).
-   - Enable the **Gmail API**.
-   - Create **OAuth 2.0 Desktop Credentials**.
-   - In the "OAuth consent screen" settings, add the sender's email to the **"Test users"** list.
-   - Save the JSON as `auth/credentials.json`.
-   - On the first run, a browser will open for authentication. The script will save a `token.json` in `auth/` automatically.
-   - **Note**: Google may show a "Google hasn't verified this app" warning. Click **Advanced** -> **Go to [Project Name] (unsafe)** to continue.
+### 2. Google API Configuration
+1.  Go to [Google Cloud Console](https://console.cloud.google.com/).
+2.  Enable the **Gmail API**.
+3.  Create **OAuth 2.0 Desktop Credentials**.
+4.  **Important**: In "OAuth consent screen", add the sender's email to **"Test users"**.
+5.  Save the JSON as `auth/credentials.json`.
 
-4. **Prepare Files**:
-   - **Contacts**: Fill `data/contacts.csv`. It **must** have `company_name` and `company_email` columns.
-   - **Template**: Edit `assets/template.txt`. Use `<<column_name>>` for variables (e.g., `Hello <<company_name>>`).
-   - **Settings**: Adjust the subject and wait times in `config.py`.
+> [NOTE]
+> Google may show an "App not verified" warning on first login. Click **Advanced** -> **Go to [Project] (unsafe)** to proceed safely.
+
+### 3. Data Preparation
+- **Contacts**: Fill `data/contacts.csv` (Headers: `company_name`, `company_email`).
+- **Template**: Edit `assets/template.txt` (Use `<<placeholder>>` variables).
+- **Config**: Set subject and intervals in `config.py`.
+
+---
 
 ## Usage
 
-### Simple Run
+### Commands
 ```bash
-python main.py
+python main.py [flags]
 ```
-Before sending, the tool will:
-1.  Verify all files exist.
-2.  Show a **Preview** of the first rendered email.
-3.  Ask for final confirmation.
 
 ### CLI Flags
 | Flag | Shortcut | Description |
 | :--- | :--- | :--- |
-| `--dry-run` | `-d` | Simulate the process without sending emails. |
-| `--reset` | | Delete history and start fresh. |
-| `--stats` | `-s` | Show a breakdown of the contact list (Sent vs Pending). |
-| `--yes` | `-y` | Skip the confirmation prompt (dangerous). |
-| `--setup` | | Show the Google API setup guide. |
-| `--contacts`| `-c` | Specify a custom contacts file path. |
-| `--template`| `-t` | Specify a custom template file path. |
+| `--dry-run` | `-d` | Run without sending real emails. |
+| `--stats` | `-s` | Show a breakdown of the contact list. |
+| `--reset` | | Delete sent history and start fresh. |
+| `--setup` | | Show the interactive setup guide. |
+| `--yes` | `-y` | Skip final confirmation (automation). |
+| `--contacts` | `-c` | Specify a custom contacts file path. |
+| `--template` | `-t` | Specify a custom template file path. |
+
+---
+
+## Key Features
+
+- **Automatic Resume**: Progress is tracked in `data/sent_log.csv`. If interrupted, the script skips already-sent entries.
+- **Rate-Limit Handling**: Automatically manages Google API 403/429 errors with exponential backoff.
+- **Manual Skip**: Add a `!` at the start of any `company_name` in the CSV to skip that row.
 
 ### Practical Examples
 - **Check list health**: `python main.py --stats`
 - **Simulate fresh run**: `python main.py --reset --dry-run`
 - **Use a specific list**: `python main.py -c data/custom_list.csv`
 
-## Technical Notes
-- **Resumability**: The script tracks sent emails in `data/sent_log.csv`. If it stops, just run it again; it will skip those already logged.
-- **Manual Skip**: If you add a `!` at the start of a `company_name` in the CSV, the script will skip that row.
-- **Rate Limits**: Includes automatic 10s-40s wait intervals if Google API rate limits (429/403) are triggered.
+---
+
+*Created by [crasni](https://github.com/crasni)*
