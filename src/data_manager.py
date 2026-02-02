@@ -61,7 +61,10 @@ class DataManager:
             email = str(row.get('company_email', '')).strip()
             name = str(row.get('company_name', '')).strip()
             
-            if not email or name.startswith('!'):
+            is_empty_email = not email or email.lower() == 'nan'
+            is_skip_tag = name.startswith('!')
+            
+            if is_empty_email or is_skip_tag:
                 skipped_tag += 1
             elif email in self.sent_emails:
                 already_sent += 1
