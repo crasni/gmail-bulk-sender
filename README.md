@@ -4,7 +4,13 @@ A tool for sending bulk emails via the Gmail API with automatic resume, rate-lim
 
 ## Setup
 
-1. **Install Python & Virtual Environment** (Recommended):
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/crasni/gmail-bulk-sender.git
+   cd gmail-bulk-sender
+   ```
+
+2. **Install Python & Virtual Environment** (Python 3.10+ recommended):
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate  # Linux/macOS
@@ -23,6 +29,7 @@ A tool for sending bulk emails via the Gmail API with automatic resume, rate-lim
    - In the "OAuth consent screen" settings, add the sender's email to the **"Test users"** list.
    - Save the JSON as `auth/credentials.json`.
    - On the first run, a browser will open for authentication. The script will save a `token.json` in `auth/` automatically.
+   - **Note**: Google may show a "Google hasn't verified this app" warning. Click **Advanced** -> **Go to [Project Name] (unsafe)** to continue.
 
 4. **Prepare Files**:
    - **Contacts**: Fill `data/contacts.csv`. It **must** have `company_name` and `company_email` columns.

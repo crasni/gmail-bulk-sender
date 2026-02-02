@@ -27,4 +27,5 @@ def show_setup_guide():
         print(f"{i}. {step}")
         
     print(f"\n{GREEN}Once 'auth/credentials.json' is in place, you are ready to send!{RESET}")
-    print(f"{YELLOW}Note: On your first run, a browser will open to ask for your permission.{RESET}\n")
+    print(f"{YELLOW}Note: On your first run, a browser will open to ask for permission.{RESET}")
+    print(f"{YELLOW}Hint: Since your app is 'External', Google may show a warning saying 'Google hasn't verified this app'. Click 'Advanced' -> 'Go to [App Name] (unsafe)' to proceed.{RESET}\n")
