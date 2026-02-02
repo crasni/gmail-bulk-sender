@@ -4,7 +4,7 @@ CONFIG = {
     'SCOPES': ['https://www.googleapis.com/auth/gmail.send'],
     
     # Files
-    'CONTACTS_FILE': 'data/test.csv',    # CSV with company_name, company_email
+    'CONTACTS_FILE': 'data/contacts.csv',    # CSV with company_name, company_email
     'TEMPLATE_FILE': 'assets/template.txt', # Email body template (<<company_name>>)
     'ATTACHMENTS': [
         'assets/2026系卡企劃書.pdf', 
