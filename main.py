@@ -131,15 +131,38 @@ def main():
 
     # Engine Execution
     engine = EmailEngine(service, data_manager, template_manager, CONFIG)
-    sent, skipped, errors = engine.run(is_dry_run=args.dry_run)
-
-    # Final Summary
-    print(f"\n{GREEN}Mission complete!{RESET}")
-    print(f"Successfully processed: {sent}")
-    print(f"Failed: {errors}")
-    print(f"Skipped: {skipped}")
-    if not args.dry_run:
-        print(f"Log updated at: {CONFIG['LOG_FILE']}")
+    try:
+        sent, skipped, errors = engine.run(is_dry_run=args.dry_run)
+        
+        # Final Summary
+        print(f"\n{GREEN}Mission complete!{RESET}")
+        print(f"Successfully processed: {sent}")
+        print(f"Failed: {errors}")
+        print(f"Skipped: {skipped}")
+        if not args.dry_run:
+            print(f"Log updated at: {CONFIG['LOG_FILE']}")
+            
+    except Exception as e:
+        from src.engine import FatalRateLimitError, FatalQuotaError, FatalAuthError
+        
+        print(f"\n{RED}Mission Interrupted!{RESET}")
+        
+        if isinstance(e, FatalRateLimitError):
+            print(f"{YELLOW}Reason: Rate limit reached.{RESET}")
+            print(f"Gmail has paused your sending. Please wait at least 30-60 minutes before trying again.")
+        elif isinstance(e, FatalQuotaError):
+            print(f"{YELLOW}Reason: Daily quota exceeded.{RESET}")
+            print(f"You've likely hit the 2,000 emails/day limit (or less for trial accounts).")
+            print(f"Please wait 24 hours for the quota to reset.")
+        elif isinstance(e, FatalAuthError):
+            print(f"{YELLOW}Reason: Authentication failed mid-run.{RESET}")
+            print(f"Your session may have expired. Try deleting {YELLOW}{CONFIG['TOKEN_FILE']}{RESET} and rerunning.")
+        else:
+            print(f"{RED}Unexpected error: {e}{RESET}")
+            raise e
+            
+        print(f"\n{GREEN}Don't worry!{RESET} Your progress is saved in {YELLOW}{CONFIG['LOG_FILE']}{RESET}.")
+        print(f"When you rerun the script, it will skip the {len(data_manager.sent_emails)} emails already sent.")
 
 if __name__ == '__main__':
     main()

@@ -32,10 +32,5 @@ def create_message(to, subject, body, attachments=None):
     return {'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}
 
 def send_gmail_message(service, message_body):
-    """Send the message via Gmail API."""
-    try:
-        service.users().messages().send(userId='me', body=message_body).execute()
-        return True
-    except Exception as e:
-        print(f"❌ Failed to send: {e}")
-        return False
+    """Send the message via Gmail API. Let exceptions bubble up for handled retry."""
+    return service.users().messages().send(userId='me', body=message_body).execute()
