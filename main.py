@@ -1,4 +1,3 @@
-import argparse
 import os
 from config import CONFIG
 from src.auth import get_gmail_service
@@ -6,25 +5,8 @@ from src.data_manager import DataManager
 from src.template_manager import TemplateManager
 from src.engine import EmailEngine
 from src.setup_assistant import show_setup_guide
-
-# ANSI Colors
-YELLOW = "\033[93m"
-GREEN = "\033[92m"
-RED = "\033[91m"
-RESET = "\033[0m"
-
-class CLIHandler:
-    @staticmethod
-    def parse_args():
-        parser = argparse.ArgumentParser(description="Gmail Bulk Sender")
-        parser.add_argument("-d", "--dry-run", action="store_true", help="Enable dry run mode (simulation)")
-        parser.add_argument("--reset", action="store_true", help="Clear the sent log before starting")
-        parser.add_argument("-c", "--contacts", type=str, default=CONFIG['CONTACTS_FILE'], help="Path to contacts CSV")
-        parser.add_argument("-t", "--template", type=str, default=CONFIG['TEMPLATE_FILE'], help="Path to email template")
-        parser.add_argument("-s", "--stats", action="store_true", help="Show contact list statistics")
-        parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompt")
-        parser.add_argument("--setup", action="store_true", help="Show the Google API setup guide")
-        return parser.parse_args()
+from src.cli import CLIHandler
+from src.ui import UI, YELLOW, GREEN, RED, RESET
 
 def check_credentials():
     """Verify credentials.json exists."""
@@ -34,7 +16,7 @@ def check_credentials():
         exit(1)
 
 def main():
-    args = CLIHandler.parse_args()
+    args = CLIHandler.parse_args(CONFIG)
     
     if args.setup:
         show_setup_guide()
@@ -77,21 +59,15 @@ def main():
         print(f"{RED}Error: {e}{RESET}")
         return
 
-    # Header
-    print("Gmail Bulk Sender")
-    print(f"Subject Pattern: {CONFIG['EMAIL_SUBJECT_FORMAT'].format(company_name='[Company]')}")
-    print(f"Contacts: {args.contacts}")
-    print(f"Template: {args.template}")
-
-    # Stats (Always shown for clarity)
+    # Display Information
+    UI.show_header(CONFIG, args)
+    
     stats = data_manager.get_stats()
-    print(f"\n{YELLOW}Contacts Summary:{RESET}")
-    print(f"- Total Records: {stats['total']}")
-    if stats['already_sent'] > 0:
-        print(f"- Already Sent:  {stats['already_sent']}")
-    if stats['to_be_skipped'] > 0:
-        print(f"- To be Skipped: {stats['to_be_skipped']}")
-    print(f"- Net to Send:   {stats['net_to_send']}")
+    attachments = CONFIG.get('ATTACHMENTS', [])
+    if isinstance(attachments, str):
+        attachments = [attachments]
+    
+    UI.show_stats(stats, args, data_manager.contacts, data_manager.sent_emails, attachments)
 
     if stats['net_to_send'] == 0:
         print(f"\n{RED}Warning: No emails to send.{RESET}")
@@ -102,25 +78,12 @@ def main():
 
     # Preview
     preview = template_manager.get_preview(data_manager.contacts, data_manager.sent_emails)
-    if preview:
-        print(f"\n{YELLOW}--- Preview (First pending email) ---{RESET}")
-        print(f"To:      {preview['to']}")
-        print(f"Subject: {preview['subject']}")
-        snippet = preview['body'].split('\n')[0]
-        print(f"Body:    {snippet}...")
-        print(f"{YELLOW}-------------------------------------{RESET}")
-    else:
-        print(f"\n{YELLOW}Notice: No pending emails found in the list.{RESET}")
-
-    if args.dry_run:
-        print(f"{YELLOW}Dry run mode enabled. No emails will be sent.{RESET}")
+    UI.show_preview(preview)
 
     # Confirmation
-    if not args.yes:
-        confirm = input("\nConfirm start? (y/n): ")
-        if confirm.lower() != 'y':
-            print("Cancelled.")
-            return
+    if not UI.confirm_start(args):
+        print("Cancelled.")
+        return
 
     # Gmail Service
     service = None
@@ -133,36 +96,12 @@ def main():
     engine = EmailEngine(service, data_manager, template_manager, CONFIG)
     try:
         sent, skipped, errors = engine.run(is_dry_run=args.dry_run)
-        
-        # Final Summary
-        print(f"\n{GREEN}Mission complete!{RESET}")
-        print(f"Successfully processed: {sent}")
-        print(f"Failed: {errors}")
-        print(f"Skipped: {skipped}")
-        if not args.dry_run:
-            print(f"Log updated at: {CONFIG['LOG_FILE']}")
+        UI.show_final_summary(sent, skipped, errors, args.dry_run, CONFIG['LOG_FILE'])
             
     except Exception as e:
-        from src.engine import FatalRateLimitError, FatalQuotaError, FatalAuthError
-        
-        print(f"\n{RED}Mission Interrupted!{RESET}")
-        
-        if isinstance(e, FatalRateLimitError):
-            print(f"{YELLOW}Reason: Rate limit reached.{RESET}")
-            print(f"Gmail has paused your sending. Please wait at least 30-60 minutes before trying again.")
-        elif isinstance(e, FatalQuotaError):
-            print(f"{YELLOW}Reason: Daily quota exceeded.{RESET}")
-            print(f"You've likely hit the 2,000 emails/day limit (or less for trial accounts).")
-            print(f"Please wait 24 hours for the quota to reset.")
-        elif isinstance(e, FatalAuthError):
-            print(f"{YELLOW}Reason: Authentication failed mid-run.{RESET}")
-            print(f"Your session may have expired. Try deleting {YELLOW}{CONFIG['TOKEN_FILE']}{RESET} and rerunning.")
-        else:
-            print(f"{RED}Unexpected error: {e}{RESET}")
-            raise e
-            
-        print(f"\n{GREEN}Don't worry!{RESET} Your progress is saved in {YELLOW}{CONFIG['LOG_FILE']}{RESET}.")
-        print(f"When you rerun the script, it will skip the {len(data_manager.sent_emails)} emails already sent.")
+        UI.show_interruption(e, CONFIG, data_manager)
+        # We don't re-raise here because UI.show_interruption handled the user-facing part
+        # and main() is the entry point.
 
 if __name__ == '__main__':
     main()

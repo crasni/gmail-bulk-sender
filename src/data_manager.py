@@ -71,7 +71,8 @@ class DataManager:
         
         total = len(self.contacts)
         already_sent = 0
-        skipped_tag = 0
+        missing_email = 0
+        manually_skipped = 0
         to_send = 0
         
         for _, row in self.contacts.iterrows():
@@ -81,8 +82,10 @@ class DataManager:
             is_empty_email = not email or email.lower() == 'nan'
             is_skip_tag = name.startswith('!')
             
-            if is_empty_email or is_skip_tag:
-                skipped_tag += 1
+            if is_empty_email:
+                missing_email += 1
+            elif is_skip_tag:
+                manually_skipped += 1
             elif email in self.sent_emails:
                 already_sent += 1
             else:
@@ -91,7 +94,9 @@ class DataManager:
         return {
             'total': total,
             'already_sent': already_sent,
-            'to_be_skipped': skipped_tag,
+            'missing_email': missing_email,
+            'manually_skipped': manually_skipped,
+            'to_be_skipped': missing_email + manually_skipped,
             'net_to_send': to_send
         }
 
