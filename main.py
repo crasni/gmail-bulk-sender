@@ -83,14 +83,22 @@ def main():
     print(f"Contacts: {args.contacts}")
     print(f"Template: {args.template}")
 
-    # Stats
-    if args.stats:
-        stats = data_manager.get_stats()
-        print(f"\n{YELLOW}Contacts Summary:{RESET}")
-        print(f"- Total Records: {stats['total']}")
+    # Stats (Always shown for clarity)
+    stats = data_manager.get_stats()
+    print(f"\n{YELLOW}Contacts Summary:{RESET}")
+    print(f"- Total Records: {stats['total']}")
+    if stats['already_sent'] > 0:
         print(f"- Already Sent:  {stats['already_sent']}")
+    if stats['to_be_skipped'] > 0:
         print(f"- To be Skipped: {stats['to_be_skipped']}")
-        print(f"- Net to Send:   {stats['net_to_send']}")
+    print(f"- Net to Send:   {stats['net_to_send']}")
+
+    if stats['net_to_send'] == 0:
+        print(f"\n{RED}Warning: No emails to send.{RESET}")
+        if stats['already_sent'] == stats['total']:
+            print(f"Tip: All contacts in {args.contacts} are already in the sent log.")
+            print(f"Use {YELLOW}--reset{RESET} if you want to resend to everyone.")
+        return
 
     # Preview
     preview = template_manager.get_preview(data_manager.contacts, data_manager.sent_emails)

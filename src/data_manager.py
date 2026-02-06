@@ -13,7 +13,21 @@ class DataManager:
         """Read the contacts CSV file."""
         if not os.path.exists(self.contacts_file):
             raise FileNotFoundError(f"Contacts file not found: {self.contacts_file}")
+        
         self.contacts = pd.read_csv(self.contacts_file)
+        
+        # Strict validation of mandatory columns
+        mandatory = ['company_name', 'company_email']
+        missing = [col for col in mandatory if col not in self.contacts.columns]
+        
+        if missing:
+            found = list(self.contacts.columns)
+            raise ValueError(
+                f"Missing mandatory columns: {', '.join(missing)}\n"
+                f"Found columns: {', '.join(found)}\n"
+                f"Tip: Ensure the CSV headers match exactly: {', '.join(mandatory)}"
+            )
+            
         return self.contacts
 
     def load_sent_log(self):
@@ -31,6 +45,9 @@ class DataManager:
 
     def log_send(self, email, name):
         """Record a successful send in the log file."""
+        if os.path.dirname(self.log_file):
+            os.makedirs(os.path.dirname(self.log_file), exist_ok=True)
+            
         file_exists = os.path.exists(self.log_file)
         log_data = {
             'timestamp': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],

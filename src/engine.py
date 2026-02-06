@@ -32,11 +32,17 @@ class EmailEngine:
             cmp_name = str(row.get('company_name', '')).strip()
             cmp_email = str(row.get('company_email', '')).strip()
             
-            if not cmp_email or cmp_name.startswith('!'):
-                skipped_count += 1
-                continue
+            # Skipping logic with clear reasons
+            skip_reason = None
+            if not cmp_email or cmp_email.lower() == 'nan':
+                skip_reason = "Empty email"
+            elif cmp_name.startswith('!'):
+                skip_reason = "Excluded name (!)"
+            elif cmp_email in sent_emails:
+                skip_reason = "Already sent"
                 
-            if cmp_email in sent_emails:
+            if skip_reason:
+                tqdm.write(f"{YELLOW}Skipping {cmp_name or '[Empty]'}: {skip_reason}{RESET}")
                 skipped_count += 1
                 continue
 
